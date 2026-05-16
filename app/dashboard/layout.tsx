@@ -1,4 +1,5 @@
 import { DashboardLayout } from "@/components/dashboard-layout"
+import { ChatWidget } from "@/components/chat-widget"
 import { dashboardStats, mockAlerts } from "@/lib/mock-data"
 
 export default function DashboardRootLayout({
@@ -14,6 +15,7 @@ export default function DashboardRootLayout({
       unreadAlerts={unreadAlerts}
     >
       {children}
+      <ChatWidget />
     </DashboardLayout>
   )
 }
