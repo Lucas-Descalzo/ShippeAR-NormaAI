@@ -14,23 +14,29 @@ import {
 } from "@/components/ui/select"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { 
   Search, 
   Filter,
   ExternalLink,
   ChevronDown,
   Users,
-  Calendar
+  Calendar,
+  FileText,
+  Scale
 } from "lucide-react"
 import { 
   mockRegulations, 
+  mockClients,
   getSourceColor, 
   formatDate,
   type Regulation
 } from "@/lib/mock-data"
+import { normativas } from "@/lib/normativas"
+import Link from "next/link"
 
-const sources = ["Todos", "AFIP", "INFOLEG", "CNV", "Boletín Oficial"] as const
-const topics = ["Todos", "Monotributo", "Ganancias", "IVA", "Bienes Personales", "Sociedades", "General"] as const
+const sources = ["Todos", "AFIP", "INFOLEG", "Boletín Oficial"] as const
+const topics = ["Todos", "Monotributo", "Ganancias", "IVA", "Bienes Personales", "General"] as const
 
 export default function NormativasPage() {
   const [searchQuery, setSearchQuery] = useState("")
@@ -73,7 +79,7 @@ export default function NormativasPage() {
       <div>
         <h1 className="text-2xl font-bold text-foreground">Normativas</h1>
         <p className="text-muted-foreground">
-          Explorá las últimas regulaciones de AFIP, INFOLEG, CNV y Boletín Oficial.
+          Explorá las últimas regulaciones de AFIP, INFOLEG y Boletín Oficial con artículos completos.
         </p>
       </div>
 
@@ -175,6 +181,14 @@ interface RegulationCardProps {
 }
 
 function RegulationCard({ regulation, isExpanded, onToggle }: RegulationCardProps) {
+  // Get full normativa data from normativas.ts
+  const fullNormativa = normativas.find(n => n.id === regulation.id)
+  
+  // Get affected clients
+  const affectedClients = mockClients.filter(client => 
+    client.impactHistory.some(impact => impact.normativaId === regulation.id)
+  )
+
   return (
     <Collapsible open={isExpanded} onOpenChange={onToggle}>
       <Card className="hover:border-secondary/50 transition-colors">
@@ -215,45 +229,93 @@ function RegulationCard({ regulation, isExpanded, onToggle }: RegulationCardProp
         <CollapsibleContent>
           <CardContent className="pt-0">
             <div className="border-t pt-4 space-y-4">
-              {/* Full Summary */}
-              <div>
-                <h4 className="text-sm font-medium mb-2">Resumen completo</h4>
-                <p className="text-sm text-muted-foreground">
-                  {regulation.summary}
-                </p>
-              </div>
-
-              {/* Affected Clients */}
-              {regulation.affectedClientCount > 0 && (
-                <div className="p-3 bg-secondary/5 rounded-lg">
-                  <p className="text-sm">
-                    <span className="font-medium text-secondary">
-                      {regulation.affectedClientCount} cliente{regulation.affectedClientCount !== 1 && "s"}
-                    </span>{" "}
-                    de tu cartera podrían verse afectados por esta normativa.
-                  </p>
+              
+              {/* Artículos de la normativa */}
+              {fullNormativa && fullNormativa.articulos.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                    <Scale className="h-4 w-4" />
+                    Artículos relevantes ({fullNormativa.articulos.length})
+                  </h4>
+                  <Accordion type="single" collapsible className="w-full">
+                    {fullNormativa.articulos.map((articulo, index) => (
+                      <AccordionItem key={index} value={`articulo-${index}`}>
+                        <AccordionTrigger className="text-sm hover:no-underline">
+                          <div className="flex items-start gap-2 text-left">
+                            <Badge variant="outline" className="shrink-0 text-xs">
+                              {articulo.numero}
+                            </Badge>
+                            <span className="font-medium">{articulo.titulo}</span>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <div className="pl-4 border-l-2 border-secondary/30 ml-2">
+                            <p className="text-sm text-muted-foreground whitespace-pre-line">
+                              {articulo.texto}
+                            </p>
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    ))}
+                  </Accordion>
                 </div>
               )}
 
-              {/* Citation */}
-              <p className="text-xs text-muted-foreground italic">
-                Basado en: {regulation.title}, Art. 1-5 · Análisis generado por NormaAI
-              </p>
+              {/* Affected Clients */}
+              {affectedClients.length > 0 && (
+                <div className="p-4 bg-secondary/5 rounded-lg">
+                  <p className="text-sm font-medium mb-3 flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    Clientes afectados ({affectedClients.length})
+                  </p>
+                  <div className="space-y-2">
+                    {affectedClients.map(client => {
+                      const relevantImpact = client.impactHistory.find(i => i.normativaId === regulation.id)
+                      return (
+                        <Link 
+                          key={client.id}
+                          href={`/dashboard/clientes/${client.id}`}
+                          className="flex items-center justify-between p-2 rounded-md hover:bg-muted/50 transition-colors"
+                        >
+                          <div className="flex items-center gap-2">
+                            <div className={`h-2 w-2 rounded-full ${
+                              relevantImpact?.impact === "high" ? "bg-red-500" :
+                              relevantImpact?.impact === "medium" ? "bg-amber-500" : "bg-green-500"
+                            }`} />
+                            <span className="text-sm font-medium">{client.name}</span>
+                            <Badge variant="outline" className="text-xs">
+                              {client.category}
+                              {client.subcategory && ` - ${client.subcategory}`}
+                            </Badge>
+                          </div>
+                          {relevantImpact && (
+                            <span className="text-xs text-muted-foreground">
+                              {relevantImpact.articuloRef}
+                            </span>
+                          )}
+                        </Link>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
 
-              {/* Actions */}
+              {/* Source link */}
               <div className="flex items-center gap-2 pt-2">
                 {regulation.url && (
                   <Button variant="outline" size="sm" asChild>
                     <a href={regulation.url} target="_blank" rel="noopener noreferrer">
                       <ExternalLink className="h-4 w-4 mr-2" />
-                      Ver texto completo
+                      Ver texto completo en {regulation.source}
                     </a>
                   </Button>
                 )}
-                <Button variant="ghost" size="sm">
-                  Ver clientes afectados
-                </Button>
               </div>
+
+              {/* Citation */}
+              <p className="text-xs text-muted-foreground italic border-t pt-3">
+                Fuente: {fullNormativa?.title || regulation.title} · {regulation.source} · {formatDate(regulation.date)}
+              </p>
             </div>
           </CardContent>
         </CollapsibleContent>

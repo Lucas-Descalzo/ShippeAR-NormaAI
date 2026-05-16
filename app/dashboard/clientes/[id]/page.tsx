@@ -20,12 +20,16 @@ import {
   Clock,
   AlertCircle,
   CheckCircle2,
-  Loader2
+  Loader2,
+  Scale,
+  Quote
 } from "lucide-react"
 import { 
   mockClients, 
   getImpactColor, 
-  formatDate 
+  formatDate,
+  getNormativaById,
+  getCategoryLimits
 } from "@/lib/mock-data"
 
 export default function ClientDetailPage() {
@@ -77,6 +81,19 @@ export default function ClientDetailPage() {
       case "incorporation": return "Constitución"
       default: return "Documento"
     }
+  }
+
+  // Get category limits if Monotributo
+  const categoryLetter = client.subcategory?.replace("Categoría ", "")
+  const categoryLimits = categoryLetter ? getCategoryLimits(categoryLetter) : null
+
+  // Format currency
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("es-AR", {
+      style: "currency",
+      currency: "ARS",
+      maximumFractionDigits: 0,
+    }).format(amount)
   }
 
   return (
@@ -176,6 +193,53 @@ export default function ClientDetailPage() {
                     </p>
                   </div>
                 </div>
+
+                {/* Monotributo-specific data */}
+                {client.category === "Monotributo" && client.ingresosBrutosAnuales && categoryLimits && (
+                  <>
+                    <Separator />
+                    <div>
+                      <p className="text-sm font-medium mb-3 flex items-center gap-2">
+                        <Scale className="h-4 w-4" />
+                        Situación frente a Monotributo (RG AFIP 5614/2025)
+                      </p>
+                      <div className="space-y-3">
+                        <div>
+                          <div className="flex justify-between text-sm mb-1">
+                            <span className="text-muted-foreground">Ingresos brutos anuales</span>
+                            <span className="font-medium">{formatCurrency(client.ingresosBrutosAnuales)}</span>
+                          </div>
+                          <div className="h-2 bg-muted rounded-full overflow-hidden">
+                            <div 
+                              className={`h-full rounded-full ${
+                                client.ingresosBrutosAnuales / categoryLimits.ingresos > 0.9 
+                                  ? "bg-red-500" 
+                                  : client.ingresosBrutosAnuales / categoryLimits.ingresos > 0.7
+                                    ? "bg-amber-500"
+                                    : "bg-green-500"
+                              }`}
+                              style={{ width: `${Math.min((client.ingresosBrutosAnuales / categoryLimits.ingresos) * 100, 100)}%` }}
+                            />
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Tope {client.subcategory}: {formatCurrency(categoryLimits.ingresos)}
+                          </p>
+                        </div>
+                        <div className="p-3 bg-muted/50 rounded-lg text-xs">
+                          <p className="font-medium mb-1">Cuota mensual vigente:</p>
+                          <p>
+                            {client.tipoActividad === "Servicios" 
+                              ? formatCurrency(categoryLimits.cuotaServicios)
+                              : formatCurrency(categoryLimits.cuotaBienes)
+                            }
+                            {" "}({client.tipoActividad || "Servicios"})
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+
                 <Separator />
                 <div>
                   <p className="text-sm text-muted-foreground mb-2">Impactos detectados</p>
@@ -212,24 +276,39 @@ export default function ClientDetailPage() {
               <CardContent>
                 {client.impactHistory.length > 0 ? (
                   <div className="space-y-4">
-                    {client.impactHistory.slice(0, 3).map((impact) => (
-                      <div key={impact.id} className="flex items-start gap-3">
-                        <div className={`h-2 w-2 rounded-full mt-2 shrink-0 ${
-                          impact.impact === "high" ? "bg-red-500" : 
-                          impact.impact === "medium" ? "bg-amber-500" : "bg-green-500"
-                        }`} />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium">{impact.regulationTitle}</p>
-                          <p className="text-xs text-muted-foreground mt-1">{impact.summary}</p>
-                          {impact.deadline && (
-                            <p className="text-xs text-destructive mt-1 flex items-center gap-1">
-                              <Clock className="h-3 w-3" />
-                              Vence: {formatDate(impact.deadline)}
-                            </p>
-                          )}
+                    {client.impactHistory.slice(0, 3).map((impact) => {
+                      const normativa = getNormativaById(impact.normativaId)
+                      return (
+                        <div key={impact.id} className="flex items-start gap-3">
+                          <div className={`h-2 w-2 rounded-full mt-2 shrink-0 ${
+                            impact.impact === "high" ? "bg-red-500" : 
+                            impact.impact === "medium" ? "bg-amber-500" : "bg-green-500"
+                          }`} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium">{impact.regulationTitle}</p>
+                            <p className="text-xs text-secondary">{impact.articuloRef}</p>
+                            <p className="text-xs text-muted-foreground mt-1">{impact.summary}</p>
+                            {impact.deadline && (
+                              <p className="text-xs text-destructive mt-1 flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                Vence: {formatDate(impact.deadline)}
+                              </p>
+                            )}
+                            {normativa && (
+                              <a 
+                                href={normativa.url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-xs text-secondary hover:underline mt-1 inline-flex items-center gap-1"
+                              >
+                                Ver normativa completa
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 ) : (
                   <div className="text-center py-6 text-muted-foreground">
@@ -320,7 +399,7 @@ export default function ClientDetailPage() {
             <CardHeader>
               <CardTitle>Historial de impactos regulatorios</CardTitle>
               <CardDescription>
-                Línea temporal de normativas que han afectado a este cliente
+                Línea temporal de normativas que han afectado a este cliente, con citas textuales
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -330,55 +409,85 @@ export default function ClientDetailPage() {
                   <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-border" />
                   
                   <div className="space-y-6">
-                    {client.impactHistory.map((impact, index) => (
-                      <div key={impact.id} className="relative pl-10">
-                        {/* Timeline dot */}
-                        <div className={`absolute left-2.5 w-3 h-3 rounded-full border-2 border-background ${
-                          impact.impact === "high" ? "bg-red-500" : 
-                          impact.impact === "medium" ? "bg-amber-500" : "bg-green-500"
-                        }`} />
-                        
-                        <Card>
-                          <CardContent className="p-4">
-                            <div className="flex items-start justify-between gap-4">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <Badge variant="outline" className={getImpactColor(impact.impact)}>
-                                    {impact.impact === "high" ? "Impacto alto" : 
-                                     impact.impact === "medium" ? "Impacto medio" : "Impacto bajo"}
-                                  </Badge>
-                                  <span className="text-xs text-muted-foreground">
-                                    {formatDate(impact.date)}
-                                  </span>
-                                </div>
-                                <h4 className="font-medium mb-1">{impact.regulationTitle}</h4>
-                                <p className="text-sm text-muted-foreground">{impact.summary}</p>
-                                
-                                {impact.suggestedAction && (
-                                  <div className="mt-3 p-3 bg-muted rounded-lg">
-                                    <p className="text-xs font-medium text-muted-foreground mb-1">
-                                      Acción sugerida:
-                                    </p>
-                                    <p className="text-sm">{impact.suggestedAction}</p>
+                    {client.impactHistory.map((impact) => {
+                      const normativa = getNormativaById(impact.normativaId)
+                      return (
+                        <div key={impact.id} className="relative pl-10">
+                          {/* Timeline dot */}
+                          <div className={`absolute left-2.5 w-3 h-3 rounded-full border-2 border-background ${
+                            impact.impact === "high" ? "bg-red-500" : 
+                            impact.impact === "medium" ? "bg-amber-500" : "bg-green-500"
+                          }`} />
+                          
+                          <Card>
+                            <CardContent className="p-4">
+                              <div className="flex items-start justify-between gap-4">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <Badge variant="outline" className={getImpactColor(impact.impact)}>
+                                      {impact.impact === "high" ? "Impacto alto" : 
+                                       impact.impact === "medium" ? "Impacto medio" : "Impacto bajo"}
+                                    </Badge>
+                                    <span className="text-xs text-muted-foreground">
+                                      {formatDate(impact.date)}
+                                    </span>
                                   </div>
-                                )}
-                                
-                                {impact.deadline && (
-                                  <p className="mt-2 text-sm text-destructive flex items-center gap-1">
-                                    <Clock className="h-4 w-4" />
-                                    Fecha límite: {formatDate(impact.deadline)}
-                                  </p>
-                                )}
-                                
-                                <p className="mt-3 text-xs text-muted-foreground italic">
-                                  Basado en: {impact.regulationTitle}, análisis automático NormaAI
-                                </p>
+                                  <h4 className="font-medium mb-1">{impact.regulationTitle}</h4>
+                                  <p className="text-xs text-secondary font-medium mb-2">{impact.articuloRef}</p>
+                                  <p className="text-sm text-muted-foreground">{impact.summary}</p>
+                                  
+                                  {/* Cita textual de la normativa */}
+                                  {impact.citaTextual && (
+                                    <div className="mt-3 p-3 bg-secondary/5 rounded-lg border-l-2 border-secondary">
+                                      <p className="text-xs font-medium text-secondary mb-1 flex items-center gap-1">
+                                        <Quote className="h-3 w-3" />
+                                        Cita textual de la normativa:
+                                      </p>
+                                      <p className="text-sm italic text-muted-foreground">
+                                        &ldquo;{impact.citaTextual}&rdquo;
+                                      </p>
+                                    </div>
+                                  )}
+                                  
+                                  {impact.suggestedAction && (
+                                    <div className="mt-3 p-3 bg-muted rounded-lg">
+                                      <p className="text-xs font-medium text-muted-foreground mb-1">
+                                        Acción sugerida:
+                                      </p>
+                                      <p className="text-sm">{impact.suggestedAction}</p>
+                                    </div>
+                                  )}
+                                  
+                                  {impact.deadline && (
+                                    <p className="mt-2 text-sm text-destructive flex items-center gap-1">
+                                      <Clock className="h-4 w-4" />
+                                      Fecha límite: {formatDate(impact.deadline)}
+                                    </p>
+                                  )}
+                                  
+                                  <div className="mt-3 flex items-center gap-2">
+                                    <p className="text-xs text-muted-foreground italic">
+                                      Basado en: {impact.regulationTitle}, {impact.articuloRef}
+                                    </p>
+                                    {normativa && (
+                                      <a 
+                                        href={normativa.url} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        className="text-xs text-secondary hover:underline inline-flex items-center gap-1"
+                                      >
+                                        <ExternalLink className="h-3 w-3" />
+                                        Fuente
+                                      </a>
+                                    )}
+                                  </div>
+                                </div>
                               </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      </div>
-                    ))}
+                            </CardContent>
+                          </Card>
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               ) : (
