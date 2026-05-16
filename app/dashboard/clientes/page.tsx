@@ -42,7 +42,9 @@ import {
   ArrowRight,
   AlertCircle,
   Trash2,
-  RotateCcw
+  RotateCcw,
+  Upload,
+  FolderUp
 } from "lucide-react"
 import { type Client, mockClients as initialClients, formatDate } from "@/lib/mock-data"
 
@@ -278,6 +280,27 @@ export default function ClientesPage() {
           onChange={(e) => setSearchQuery(e.target.value)}
         />
       </div>
+
+      {/* Upload Zone - Demo */}
+      <Card className="border-dashed border-2 border-muted-foreground/25 bg-muted/30 hover:border-secondary/50 hover:bg-muted/50 transition-colors cursor-pointer">
+        <CardContent className="p-8">
+          <div className="flex flex-col items-center justify-center text-center">
+            <div className="h-12 w-12 rounded-full bg-secondary/10 flex items-center justify-center mb-4">
+              <FolderUp className="h-6 w-6 text-secondary" />
+            </div>
+            <h3 className="font-semibold text-foreground mb-1">
+              Cargar expedientes de clientes
+            </h3>
+            <p className="text-sm text-muted-foreground mb-4 max-w-md">
+              Arrastra archivos PDF, Excel o imágenes de documentos fiscales para agregar nuevos clientes automáticamente.
+            </p>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Upload className="h-4 w-4" />
+              <span>PDF, XLSX, JPG, PNG - Máx. 10MB por archivo</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Clients Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
